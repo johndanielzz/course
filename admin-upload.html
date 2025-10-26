@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX Masterclass — Upload & Manage Content</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <style>
+        .drag-over {
+            border: 2px dashed #0ea5e9;
+            background-color: #e0f2fe;
+        }
+
+        .cover-thumb {
+            max-width: 80px;
+            max-height: 80px;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 min-h-screen font-sans">
+    <div class="max-w-6xl mx-auto p-6">
+
+        <header class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">Admin — Upload & Manage Course Content</h1>
+            <button id="logoutBtn" class="bg-rose-600 text-white px-4 py-2 rounded">Logout</button>
+        </header>
+
+        <!-- Upload Section -->
+        <div class="bg-white p-6 rounded shadow mb-6">
+            <h2 class="text-xl font-medium mb-3">Upload New Files</h2>
+            <input id="fileTitle" type="text" placeholder="Enter file title" class="w-full border p-2 rounded mb-3">
+            <input id="fileCategory" type="text" placeholder="Enter category / tag"
+                class="w-full border p-2 rounded mb-3">
+            <input id="pdfCover" type="file" accept="image/*" class="w-full mb-3">
+            <div id="dropZone" class="border-2 border-dashed border-gray-400 p-6 rounded text-center mb-3">
+                Drag & drop files here or click to select (video/pdf)
+            </div>
+            <input id="fileInput" type="file" accept="video/*,application/pdf" multiple class="hidden">
+            <button id="uploadBtn" class="bg-emerald-600 text-white px-4 py-2 rounded">Upload</button>
+            <div id="progressBarContainer" class="w-full bg-gray-200 h-3 rounded mt-3 hidden">
+                <div id="progressBar" class="bg-emerald-600 h-3 rounded w-0"></div>
+            </div>
+            <p id="uploadMsg" class="mt-2 text-sm"></p>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="bg-white p-6 rounded shadow mb-6">
+            <div class="flex flex-col md:flex-row justify-between gap-3">
+                <input id="searchInput" type="text" placeholder="Search by title, category, or type"
+                    class="w-full md:w-1/2 border p-2 rounded">
+                <select id="sortSelect" class="w-full md:w-1/2 border p-2 rounded">
+                    <option value="newest">Sort by Newest</option>
+                    <option value="oldest">Sort by Oldest</option>
+                    <option value="title">Sort by Title</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Uploaded Files List -->
+        <div class="bg-white p-6 rounded shadow">
+            <h2 class="text-xl font-medium mb-3">Uploaded Files</h2>
+            <div id="fileList" class="space-y-4"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://tundnozhbovfbgqmwsnh.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        if (!localStorage.getItem('matrixAdmin')) window.location.href = 'admin-login.html';
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('matrixAdmin');
+            window.location.href = 'admin-login.html';
+        });
+
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileTitle = document.getElementById('fileTitle');
+        const fileCategory = document.getElementById('fileCategory');
+        const pdfCover = document.getElementById('pdfCover');
+        const uploadMsg = document.getElementById('uploadMsg');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const fileList = document.getElementById('fileList');
+        const searchInput = document.getElementById('searchInput');
+        const sortSelect = document.getElementById('sortSelect');
+
+        let filesToUpload = [];
+        let deletedFiles = [];
+
+        // Drag & Drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', e => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            filesToUpload = [...e.dataTransfer.files];
+            uploadMsg.textContent = `${filesToUpload.length} file(s) ready to upload`;
+        });
+        fileInput.addEventListener('change', e => {
+            filesToUpload = [...e.target.files];
+            uploadMsg.textContent = `${filesToUpload.length} file(s) ready to upload`;
+        });
+
+        // Upload Files
+        uploadBtn.addEventListener('click', async () => {
+            if (!filesToUpload.length || !fileTitle.value.trim()) {
+                uploadMsg.textContent = 'Provide a title and select at least one file.';
+                uploadMsg.className = 'text-red-600 mt-2';
+                return;
+            }
+
+            progressBarContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+
+            let coverUrl = '';
+            if (pdfCover.files[0]) {
+                const coverPath = `course_covers/${Date.now()}_${pdfCover.files[0].name}`;
+                const { error: coverErr } = await supabase.storage.from('course').upload(coverPath, pdfCover.files[0]);
+                if (!coverErr) coverUrl = supabase.storage.from('course').getPublicUrl(coverPath).publicUrl;
+            }
+
+            for (let i = 0; i < filesToUpload.length; i++) {
+                const file = filesToUpload[i];
+                const filePath = `course/${Date.now()}_${file.name}`;
+
+                const { error } = await supabase.storage.from('course').upload(filePath, file);
+                if (error) {
+                    uploadMsg.textContent = `Upload failed for ${file.name}: ${error.message}`;
+                    uploadMsg.className = 'text-red-600 mt-2';
+                    continue;
+                }
+
+                await supabase.from('course_files').insert([{
+                    title: fileTitle.value.trim(),
+                    category: fileCategory.value.trim() || 'Uncategorized',
+                    file_path: filePath,
+                    cover_url: coverUrl,
+                    created_at: new Date().toISOString()
+                }]);
+
+                progressBar.style.width = `${Math.round(((i + 1) / filesToUpload.length) * 100)}%`;
+            }
+
+            uploadMsg.textContent = 'All files uploaded successfully!';
+            uploadMsg.className = 'text-green-600 mt-2';
+            filesToUpload = [];
+            fileInput.value = '';
+            fileTitle.value = '';
+            fileCategory.value = '';
+            pdfCover.value = '';
+            progressBarContainer.classList.add('hidden');
+            loadFiles();
+        });
+
+        // Load & Display Files
+        async function loadFiles() {
+            let { data, error } = await supabase.from('course_files').select('*');
+            if (error) return fileList.innerHTML = `<p class="text-red-600">Error loading files: ${error.message}</p>`;
+
+            const query = searchInput.value.toLowerCase();
+            if (query) data = data.filter(f => f.title.toLowerCase().includes(query) || (f.category || '').toLowerCase().includes(query) || f.file_path.toLowerCase().includes(query));
+
+            const sortVal = sortSelect.value;
+            data.sort((a, b) => {
+                if (sortVal === 'newest') return new Date(b.created_at) - new Date(a.created_at);
+                if (sortVal === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+                if (sortVal === 'title') return a.title.localeCompare(b.title);
+            });
+
+            fileList.innerHTML = '';
+            if (!data.length) return fileList.innerHTML = `<p class="text-slate-600">No files uploaded yet.</p>`;
+
+            data.forEach(file => {
+                const { publicUrl } = supabase.storage.from('course').getPublicUrl(file.file_path);
+                const ext = file.file_path.split('.').pop().toLowerCase();
+                const isVideo = ['mp4', 'webm', 'ogg'].includes(ext);
+
+                const div = document.createElement('div');
+                div.className = 'border p-3 rounded flex flex-col md:flex-row justify-between items-start md:items-center bg-white';
+                div.innerHTML = `
+          <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+            ${file.cover_url && !isVideo ? `<img src="${file.cover_url}" class="cover-thumb">` : ''}
+            <div>
+              <p class="font-medium">${file.title} <span class="text-sm text-gray-500">(${file.category})</span></p>
+              ${isVideo ? `<video src="${publicUrl}" controls class="w-full md:w-64 mt-2 rounded"></video>` : `<a href="${publicUrl}" target="_blank" class="text-sky-600 underline mt-2 block">Download PDF</a>`}
+            </div>
+          </div>
+          <div class="flex gap-2 mt-2 md:mt-0">
+            <button class="editBtn bg-yellow-500 text-white px-3 py-1 rounded">Edit</button>
+            <button class="deleteBtn bg-rose-600 text-white px-3 py-1 rounded">Delete</button>
+          </div>
+        `;
+
+                // Delete file with undo
+                div.querySelector('.deleteBtn').addEventListener('click', async () => {
+                    if (!confirm(`Delete "${file.title}"?`)) return;
+                    await supabase.storage.from('course').remove([file.file_path]);
+                    await supabase.from('course_files').delete().eq('id', file.id);
+                    loadFiles();
+                });
+
+                // Edit file
+                div.querySelector('.editBtn').addEventListener('click', () => {
+                    const newTitle = prompt('New title', file.title);
+                    const newCategory = prompt('New category', file.category);
+                    if (newTitle && newCategory != null) {
+                        supabase.from('course_files').update({ title: newTitle, category: newCategory }).eq('id', file.id);
+                        loadFiles();
+                    }
+                });
+
+                fileList.appendChild(div);
+            });
+        }
+
+        searchInput.addEventListener('input', loadFiles);
+        sortSelect.addEventListener('change', loadFiles);
+
+        loadFiles();
+    </script>
+</body>
+
+</html>

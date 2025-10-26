@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MATRIX Masterclass — Registration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans">
+  <div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-semibold mb-6 text-center">MATRIX Masterclass — Registration</h1>
+
+    <div class="flex justify-between mb-6">
+      <div class="step w-1/3 text-center font-semibold" data-step="1">Step 1</div>
+      <div class="step w-1/3 text-center font-semibold" data-step="2">Step 2</div>
+      <div class="step w-1/3 text-center font-semibold" data-step="3">Step 3</div>
+    </div>
+
+    <form id="regForm" class="space-y-6 bg-white p-6 rounded shadow" onsubmit="return false;">
+      <!-- Step 1 -->
+      <div class="form-step">
+        <h2 class="text-lg font-medium mb-3">Your Information</h2>
+
+        <input id="name" name="name" type="text" placeholder="Full Name" class="w-full border rounded p-2 mb-3"
+          required>
+        <input id="email" name="email" type="email" placeholder="Email" class="w-full border rounded p-2 mb-3" required>
+        <input id="phone" name="phone" type="tel" placeholder="Phone Number" class="w-full border rounded p-2 mb-3"
+          required>
+
+        <div class="flex gap-2 mb-3">
+          <input id="password" name="password" type="password" placeholder="Password (for signup/login)"
+            class="flex-1 border rounded p-2" />
+          <button id="authBtn" class="bg-sky-600 text-white px-4 py-2 rounded">Sign up / Sign in</button>
+        </div>
+        <div id="authMsg" class="text-sm mb-3 text-rose-600"></div>
+
+        <div id="loggedInArea" class="hidden mb-3 text-sm text-slate-700">Not signed in</div>
+
+        <input id="referral" name="referral" type="text" placeholder="Referral Code (Optional)"
+          class="w-full border rounded p-2 mb-3">
+        <button type="button" class="nextBtn bg-sky-600 text-white px-4 py-2 rounded">Next</button>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="form-step hidden">
+        <h2 class="text-lg font-medium mb-3">Choose a Plan</h2>
+        <select id="plan" name="plan" class="w-full border rounded p-2 mb-3">
+          <option value="1 Month" data-amount="50">1 Month — $50</option>
+          <option value="3 Months" data-amount="120">3 Months — $120</option>
+          <option value="6 Months" data-amount="220">6 Months — $220</option>
+          <option value="8 Months" data-amount="300">8 Months — $300</option>
+          <option value="1 Year" data-amount="700">1 Year — $700</option>
+        </select>
+        <p class="mb-3">Selected Plan Price: <span id="planPrice" class="font-bold">$50</span></p>
+        <button type="button" class="prevBtn bg-gray-400 text-white px-4 py-2 rounded">Back</button>
+        <button type="button" class="nextBtn bg-sky-600 text-white px-4 py-2 rounded">Next</button>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="form-step hidden">
+        <h2 class="text-lg font-medium mb-3">Payment Method</h2>
+        <select id="paymentMethod" class="w-full border rounded p-2 mb-3">
+          <option value="Paystack">Paystack (Card / Online)</option>
+          <option value="Crypto">Crypto / Manual Payment</option>
+        </select>
+        <div id="paystackHelp" class="text-sm text-slate-600 mb-3">Paystack will charge your card automatically.</div>
+
+        <div id="cryptoSection" class="hidden bg-slate-50 p-3 rounded">
+          <p class="text-sm text-slate-700">Send payment to wallets below & upload receipt.</p>
+          <ul class="mt-2 space-y-1 text-sm">
+            <li>BTC: <span class="font-mono">12g5tyx6SPgqrrc5vATweMMuuM6yuZ3o4a</span>
+              <button type="button" onclick="copyText('12g5tyx6SPgqrrc5vATweMMuuM6yuZ3o4a')"
+                class="ml-2 text-xs text-sky-600">Copy</button>
+            </li>
+            <li>ETH: <span class="font-mono">0xC95fA8e15F0DA428c131169d60762e6a912A9Aba</span>
+              <button type="button" onclick="copyText('0xC95fA8e15F0DA428c131169d60762e6a912A9Aba')"
+                class="ml-2 text-xs text-sky-600">Copy</button>
+            </li>
+          </ul>
+          <label class="block text-sm mt-3 mb-1">Upload receipt</label>
+          <input id="receipt" type="file" accept="image/*,application/pdf" class="border rounded p-2 w-full">
+        </div>
+
+        <div class="flex gap-3 items-center mt-4">
+          <button type="button" class="prevBtn bg-gray-400 text-white px-4 py-2 rounded">Back</button>
+          <button id="registerBtn" class="bg-emerald-600 text-white px-6 py-2 rounded">Submit Registration</button>
+          <div id="spinner" class="hidden">⏳ Processing…</div>
+        </div>
+      </div>
+    </form>
+
+    <p id="msgArea" class="mt-3 text-sm"></p>
+  </div>
+
+  <script>
+    /*
+      Replace the placeholders below with your Supabase project values:
+      - SUPABASE_URL: your Supabase URL
+      - SUPABASE_ANON_KEY: your anon/public key
+    */
+    const SUPABASE_URL = 'https://mnzatuypucwbxbcohoxd.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uemF0dXlwdWN3YnhiY29ob3hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NzU3MjEsImV4cCI6MjA3NzA1MTcyMX0.fHtkdHBVd5SBJajdre5D4PtRtmUVLaF9SDzYqQkBsM0';
+
+    /* Initialize Supabase client */
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    /* UI step logic */
+    const steps = document.querySelectorAll('.form-step');
+    const nextBtns = document.querySelectorAll('.nextBtn');
+    const prevBtns = document.querySelectorAll('.prevBtn');
+    let currentStep = 0;
+    function showStep(step) {
+      steps.forEach((s, i) => s.classList.toggle('hidden', i !== step));
+      document.querySelectorAll('.step').forEach((s, i) => s.classList.toggle('text-sky-600', i === step));
+    }
+    showStep(currentStep);
+    nextBtns.forEach(btn => btn.addEventListener('click', () => { currentStep++; if (currentStep > steps.length - 1) currentStep = steps.length - 1; showStep(currentStep); }));
+    prevBtns.forEach(btn => btn.addEventListener('click', () => { currentStep--; if (currentStep < 0) currentStep = 0; showStep(currentStep); }));
+
+    /* Password strength */
+    const passwordInput = document.getElementById('password');
+    const passwordStrength = document.getElementById('passwordStrength');
+    if (passwordInput) {
+      passwordInput.addEventListener('input', () => {
+        const val = passwordInput.value;
+        let strength = 'Weak';
+        let color = 'text-rose-600';
+        if (val.length > 7 && /[A-Z]/.test(val) && /[0-9]/.test(val)) { strength = 'Strong'; color = 'text-emerald-600'; }
+        else if (val.length > 5) { strength = 'Medium'; color = 'text-yellow-500'; }
+        if (passwordStrength) {
+          passwordStrength.textContent = `Password Strength: ${strength}`;
+          passwordStrength.className = `text-sm mb-3 ${color}`;
+        }
+      });
+    }
+
+    /* Plan price dynamic */
+    const planSelect = document.getElementById('plan');
+    const planPrice = document.getElementById('planPrice');
+    function updatePlanPrice() {
+      const opt = planSelect.options[planSelect.selectedIndex];
+      const amt = opt.dataset.amount || '50';
+      planPrice.textContent = '$' + amt;
+    }
+    planSelect.addEventListener('change', updatePlanPrice);
+    updatePlanPrice();
+
+    /* Payment method toggle */
+    const paymentSelect = document.getElementById('paymentMethod');
+    const cryptoSection = document.getElementById('cryptoSection');
+    const paystackHelp = document.getElementById('paystackHelp');
+    paymentSelect.addEventListener('change', () => {
+      if (paymentSelect.value === 'Crypto') { cryptoSection.classList.remove('hidden'); paystackHelp.classList.add('hidden'); }
+      else { cryptoSection.classList.add('hidden'); paystackHelp.classList.remove('hidden'); }
+    });
+
+    /* Copy helper */
+    window.copyText = (txt) => navigator.clipboard.writeText(txt).then(() => alert('Copied!'));
+
+    /* Auth (signup or sign in) */
+    const authBtn = document.getElementById('authBtn');
+    const authMsg = document.getElementById('authMsg');
+    const loggedInArea = document.getElementById('loggedInArea');
+
+    async function refreshUserDisplay() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (user) {
+        loggedInArea.classList.remove('hidden');
+        loggedInArea.textContent = `Signed in as ${user.email} (id: ${user.id})`;
+        authMsg.textContent = '';
+      } else {
+        loggedInArea.classList.add('hidden');
+        loggedInArea.textContent = 'Not signed in';
+      }
+    }
+    refreshUserDisplay();
+
+    authBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      authMsg.textContent = '';
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      if (!email || !password) { authMsg.textContent = 'Please provide email and password.'; return; }
+
+      // Try sign in first
+      const signIn = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (signIn.error) {
+        // If user doesn't exist, try sign up
+        if (signIn.error.status === 400 || /Invalid login/.test(signIn.error.message)) {
+          const signUp = await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: document.getElementById('name').value, phone: document.getElementById('phone').value } } });
+          if (signUp.error) { authMsg.textContent = 'Sign up failed: ' + signUp.error.message; return; }
+          authMsg.textContent = 'Sign up successful — check your email to confirm if required.';
+          await refreshUserDisplay();
+          return;
+        } else {
+          authMsg.textContent = 'Sign in error: ' + signIn.error.message;
+          return;
+        }
+      }
+      // Signed in successfully
+      authMsg.textContent = 'Signed in successfully.';
+      await refreshUserDisplay();
+    });
+
+    /* Registration submit flow */
+    const registerBtn = document.getElementById('registerBtn');
+    const spinner = document.getElementById('spinner');
+    const msgArea = document.getElementById('msgArea');
+
+    async function uploadReceipt(file, userId) {
+      if (!file) return null;
+      const key = `receipts/${userId || 'guest'}_${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+      const { data, error } = await supabaseClient.storage.from('receipts').upload(key, file);
+      if (error) throw error;
+      return data.path;
+    }
+
+    async function createRegistration(payload) {
+      // Insert registration row
+      const { data, error } = await supabaseClient.from('registrations').insert([payload]).select().single();
+      if (error) throw error;
+      return data;
+    }
+
+    registerBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      spinner.classList.remove('hidden');
+      msgArea.textContent = '';
+
+      try {
+        // collect form values
+        const full_name = document.getElementById('name').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const referral = document.getElementById('referral').value.trim();
+        const planOpt = planSelect.options[planSelect.selectedIndex];
+        const plan = planOpt.value;
+        const amount = parseInt(planOpt.dataset.amount, 10);
+        const payment_method = paymentSelect.value;
+        const receiptFile = document.getElementById('receipt').files[0];
+
+        // get signed-in user id if any
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const user_id = user ? user.id : null;
+
+        // If crypto chosen, upload receipt before creating registration (so we can store receipt_url)
+        let receipt_path = null;
+        if (payment_method === 'Crypto' && receiptFile) {
+          receipt_path = await uploadReceipt(receiptFile, user_id || 'guest');
+        }
+
+        // prepare payload
+        const regPayload = {
+          user_id,
+          full_name,
+          email,
+          phone,
+          plan,
+          amount,
+          referral_code: referral || null,
+          payment_method,
+          payment_status: payment_method === 'Paystack' ? 'pending' : 'pending_manual',
+          receipt_url: receipt_path,
+          created_at: new Date().toISOString()
+        };
+
+
+        // create registration record
+        const registration = await createRegistration(regPayload);
+        msgArea.textContent = 'Registration saved.';
+
+        // If Paystack, call Edge Function to initialize payment
+        if (payment_method === 'Paystack') {
+          // Call your Edge Function endpoint (must be deployed). Replace origin as needed.
+          const fnRes = await fetch('/functions/v1/create-paystack-transaction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              amount: amount * 100, // Paystack expects kobo/cents
+              full_name,
+              registration_id: registration.id,
+              callback_url: window.location.origin + '/payment-success' // optional
+            })
+          });
+
+          if (!fnRes.ok) {
+            const errText = await fnRes.text();
+            throw new Error('Payment initialization failed: ' + errText);
+          }
+
+          const json = await fnRes.json();
+          // Expecting { authorization_url, reference }
+          if (json.authorization_url) {
+            // Redirect user to Paystack or open inline widget
+            window.location.href = json.authorization_url;
+            return;
+          } else if (json.reference) {
+            // Fallback: open inline Paystack widget using returned reference
+            const handler = PaystackPop.setup({
+              key: 'pk_test_REPLACE_WITH_YOUR_PAYSTACK_PUBLIC_KEY', // replace with your Paystack public key
+              email,
+              amount: amount * 100,
+              reference: json.reference,
+              onClose: function () {
+                alert('Payment window closed.');
+              },
+              callback: function (response) {
+                // response.reference
+                msgArea.textContent = 'Payment complete. Reference: ' + response.reference;
+              }
+            });
+            handler.openIframe();
+          } else {
+            throw new Error('Unexpected Edge Function response.');
+          }
+        } else {
+          // Crypto/manual: inform user registration is pending manual verification
+          msgArea.textContent = 'Registration submitted. Please upload receipt for manual verification if you haven\'t already.';
+        }
+
+      } catch (err) {
+        console.error(err);
+        msgArea.textContent = 'Error: ' + (err.message || err);
+      } finally {
+        spinner.classList.add('hidden');
+      }
+    });
+
+    /* Keep listening for auth state changes to update UI */
+    supabaseClient.auth.onAuthStateChange((_event, _session) => {
+      refreshUserDisplay();
+    });
+
+    /* Simple helper to fetch a signed URL for a receipt (if needed) */
+    async function getReceiptUrl(path) {
+      if (!path) return null;
+      const { data } = await supabaseClient.storage.from('receipts').createSignedUrl(path, 60 * 60); // 1 hour
+      return data?.signedUrl || null;
+    }
+  </script>
+</body>
+
+</html>

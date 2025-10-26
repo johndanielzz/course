@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX Masterclass — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .tab-active {
+            @apply bg-sky-600 text-white;
+        }
+
+        .tab-inactive {
+            @apply bg-white text-slate-700 hover:bg-slate-100;
+        }
+
+        .progress-bar {
+            @apply h-2 bg-emerald-500 rounded;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 font-sans min-h-screen flex flex-col md:flex-row">
+
+    <!-- Mobile Navbar -->
+    <div class="bg-white shadow p-4 flex justify-between md:hidden">
+        <h2 class="font-bold text-lg">MATRIX Masterclass</h2>
+        <button id="mobileMenuBtn" class="text-sky-600 font-semibold">☰</button>
+    </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white shadow p-4 hidden md:block">
+        <h2 class="text-xl font-bold mb-6">MATRIX Masterclass</h2>
+        <nav class="flex flex-col gap-2">
+            <button class="tab-btn tab-active" data-tab="courses">Courses</button>
+            <button class="tab-btn tab-inactive" data-tab="certificates">Certificates</button>
+            <button class="tab-btn tab-inactive" data-tab="profile">Profile</button>
+            <button id="logoutBtn" class="text-left px-2 py-1 rounded bg-red-600 text-white mt-4">Logout</button>
+        </nav>
+        <div class="mt-6">
+            <p class="font-semibold mb-2">Progress</p>
+            <div class="bg-gray-200 h-2 rounded mb-1">
+                <div id="overallProgress" class="progress-bar w-0"></div>
+            </div>
+            <p class="text-sm text-slate-600" id="overallProgressText">0%</p>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-6">
+        <div id="statusMsg" class="mb-4 text-center font-medium"></div>
+        <div id="dashboardStats" class="grid grid-cols-3 gap-4 mb-6"></div>
+        <input id="searchInput" type="text" placeholder="Search courses..."
+            class="mb-4 p-2 border rounded w-full md:w-1/2">
+        <div id="dashboardContent" class="grid gap-4 md:grid-cols-2"></div>
+    </main>
+
+    <script>
+        const SUPABASE_URL = 'https://tundnozhbovfbgqmwsnh.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const student = JSON.parse(localStorage.getItem('studentSession'));
+        if (!student) window.location.href = 'login.html';
+
+        const statusMsg = document.getElementById('statusMsg');
+        const dashboardContent = document.getElementById('dashboardContent');
+        const dashboardStats = document.getElementById('dashboardStats');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const searchInput = document.getElementById('searchInput');
+        const overallProgress = document.getElementById('overallProgress');
+        const overallProgressText = document.getElementById('overallProgressText');
+        const sidebar = document.getElementById('sidebar');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+
+        // Mobile menu toggle
+        mobileMenuBtn?.addEventListener('click', () => { sidebar.classList.toggle('hidden'); });
+
+        // Logout
+        logoutBtn.addEventListener('click', () => { localStorage.removeItem('studentSession'); window.location.href = 'login.html'; });
+
+        // Tab Navigation
+        const tabs = document.querySelectorAll('.tab-btn');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => { t.classList.replace('tab-active', 'tab-inactive'); t.classList.replace('tab-inactive', 'tab-active'); });
+                tab.classList.replace('tab-inactive', 'tab-active');
+                switchTab(tab.dataset.tab);
+            });
+        });
+
+        function switchTab(tab) {
+            dashboardContent.innerHTML = '';
+            if (tab === 'courses') loadCourses();
+            if (tab === 'certificates') loadCertificates();
+            if (tab === 'profile') loadProfile();
+        }
+
+        async function validateSubscription() {
+            const { data, error } = await supabase.from('registrations').select('*').eq('email', student.email).eq('login_code', student.login_code).single();
+            if (error || !data) { statusMsg.textContent = 'Session invalid. Redirecting...'; localStorage.removeItem('studentSession'); setTimeout(() => window.location.href = 'login.html', 2000); return; }
+
+            const now = new Date();
+            const subEnd = new Date(data.subscription_end);
+
+            if (!data.payment_verified) statusMsg.textContent = '⚠️ Payment pending verification';
+            else if (subEnd < now) statusMsg.textContent = '❌ Subscription expired';
+            else statusMsg.textContent = '✅ Access granted';
+
+            loadDashboardStats(data);
+            loadCourses();
+        }
+
+        function loadDashboardStats(regData) {
+            const stats = [
+                { label: 'Subscription Expires', value: new Date(regData.subscription_end).toLocaleDateString() },
+                { label: 'Payment Verified', value: regData.payment_verified ? 'Yes ✅' : 'No ⚠️' },
+                { label: 'Courses Available', value: 0 },
+                { label: 'Courses Completed', value: 0 }
+            ];
+            dashboardStats.innerHTML = '';
+            stats.forEach(s => {
+                const div = document.createElement('div');
+                div.className = 'bg-white p-4 rounded shadow text-center';
+                div.innerHTML = `<p class="font-semibold text-lg">${s.value}</p><p class="text-sm text-slate-600">${s.label}</p>`;
+                dashboardStats.appendChild(div);
+            });
+        }
+
+        async function loadCourses() {
+            const { data: files, error } = await supabase.storage.from('course').list();
+            if (error) { dashboardContent.innerHTML = 'Failed to load courses'; return; }
+            dashboardContent.innerHTML = '';
+
+            const { data: progressData } = await supabase.from('progress').select('*').eq('email', student.email);
+            let completedCount = 0;
+
+            files.forEach(file => {
+                const { publicUrl } = supabase.storage.from('course').getPublicUrl(file.name);
+                const ext = file.name.split('.').pop().toLowerCase();
+                const isVideo = ['mp4', 'webm', 'ogg'].includes(ext);
+
+                const progressRecord = progressData?.find(p => p.file === file.name);
+                const completed = progressRecord?.completed;
+                if (completed) completedCount++;
+
+                const lastTime = progressRecord?.last_time || 0;
+
+                const courseCard = document.createElement('div');
+                courseCard.className = 'bg-white p-4 rounded shadow flex flex-col hover:shadow-lg transition';
+                courseCard.dataset.title = file.name.toLowerCase();
+
+                courseCard.innerHTML = `
+      <h3 class="font-semibold mb-2">${file.name}</h3>
+      ${isVideo ? `<video src="${publicUrl}" controls class="w-full rounded mb-2" data-file="${file.name}"></video>` :
+                        `<img src="images/pdf-cover.png" class="w-full rounded mb-2"><a href="${publicUrl}" target="_blank" class="text-sky-600 underline">Download PDF</a>`}
+      <div class="flex justify-between items-center mt-2">
+        <button class="markComplete bg-emerald-500 text-white px-3 py-1 rounded">${completed ? 'Completed' : 'Mark Complete'}</button>
+        <div class="w-full bg-gray-200 rounded h-2 ml-2">
+          <div class="progress-bar" style="width:${completed ? 100 : 0}%"></div>
+        </div>
+      </div>
+    `;
+                dashboardContent.appendChild(courseCard);
+
+                // Video resume
+                if (isVideo && lastTime > 0) {
+                    const videoEl = courseCard.querySelector('video');
+                    videoEl.currentTime = lastTime;
+                    videoEl.addEventListener('timeupdate', () => {
+                        supabase.from('progress').upsert({ email: student.email, file: file.name, last_time: videoEl.currentTime });
+                    });
+                }
+
+                courseCard.querySelector('.markComplete').addEventListener('click', async () => {
+                    await supabase.from('progress').upsert({ email: student.email, file: file.name, completed: true, completed_at: new Date().toISOString() });
+                    courseCard.querySelector('.progress-bar').style.width = '100%';
+                    courseCard.querySelector('.markComplete').textContent = 'Completed';
+                    loadDashboardStatsProgress(completedCount + 1, files.length);
+                });
+            });
+
+            dashboardStats.children[2].querySelector('p').textContent = files.length;
+            dashboardStats.children[3].querySelector('p').textContent = completedCount;
+            overallProgress.style.width = `${Math.round((completedCount / files.length) * 100)}%`;
+            overallProgressText.textContent = `${Math.round((completedCount / files.length) * 100)}%`;
+
+            // Search filter
+            searchInput.addEventListener('input', () => {
+                const val = searchInput.value.toLowerCase();
+                dashboardContent.querySelectorAll('div[data-title]').forEach(card => {
+                    card.style.display = card.dataset.title.includes(val) ? 'block' : 'none';
+                });
+            });
+        }
+
+        function loadDashboardStatsProgress(completed, total) {
+            dashboardStats.children[3].querySelector('p').textContent = completed;
+            overallProgress.style.width = `${Math.round((completed / total) * 100)}%`;
+            overallProgressText.textContent = `${Math.round((completed / total) * 100)}%`;
+        }
+
+        async function loadCertificates() {
+            const { data, error } = await supabase.from('certificates').select('*').eq('email', student.email);
+            dashboardContent.innerHTML = '';
+            if (error || !data.length) { dashboardContent.innerHTML = '<p class="text-center text-slate-600">No certificates earned yet.</p>'; return; }
+            data.forEach(cert => {
+                const div = document.createElement('div');
+                div.className = 'bg-white p-4 rounded shadow';
+                div.innerHTML = `
+      <p class="font-semibold">${cert.course}</p>
+      <p class="text-sm text-slate-600">${new Date(cert.date).toLocaleDateString()}</p>
+      <a href="${cert.url}" target="_blank" class="text-sky-600 underline mt-2 inline-block">Download Certificate</a>
+    `;
+                dashboardContent.appendChild(div);
+            });
+        }
+
+        function loadProfile() {
+            dashboardContent.innerHTML = `
+    <div class="bg-white p-6 rounded shadow space-y-4">
+      <p><strong>Name:</strong> ${student.name}</p>
+      <p><strong>Email:</strong> ${student.email}</p>
+      <p><strong>Subscription Status:</strong> ${statusMsg.textContent}</p>
+    </div>
+  `;
+        }
+
+        validateSubscription();
+    </script>
+</body>
+
+</html>

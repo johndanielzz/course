@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX Masterclass — Student Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans">
+    <div class="max-w-md mx-auto p-6">
+        <h1 class="text-2xl font-semibold mb-6 text-center">MATRIX Masterclass — Student Login</h1>
+
+        <form id="loginForm" class="space-y-4 bg-white p-6 rounded shadow">
+            <input id="email" type="email" placeholder="Email" class="w-full border rounded p-2" required>
+            <input id="loginCode" type="text" placeholder="Login Code" class="w-full border rounded p-2" required>
+            <button id="loginBtn" class="w-full bg-emerald-600 text-white px-4 py-2 rounded">Login</button>
+            <div id="msgArea" class="mt-3 text-sm"></div>
+        </form>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://tundnozhbovfbgqmwsnh.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const loginForm = document.getElementById('loginForm');
+        const msgArea = document.getElementById('msgArea');
+
+        const showMessage = (text, type = 'info') => {
+            msgArea.textContent = text;
+            msgArea.className = 'mt-3 text-sm ' + (type === 'error' ? 'text-rose-600' : 'text-emerald-600');
+        };
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            const code = document.getElementById('loginCode').value.trim();
+
+            if (!email || !code) { showMessage('Please enter both email and login code.', 'error'); return; }
+
+            const { data, error } = await supabase
+                .from('registrations')
+                .select('*')
+                .eq('email', email)
+                .eq('login_code', code)
+                .eq('approved', true)
+                .single();
+
+            if (error || !data) {
+                showMessage('Invalid login or not approved yet.', 'error');
+                return;
+            }
+
+            showMessage('Login successful! Redirecting…');
+            // Redirect to course page or dashboard
+            setTimeout(() => window.location.href = 'course.html', 1000);
+        });
+    </script>
+</body>
+
+</html>

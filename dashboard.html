@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX Masterclass — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans">
+
+    <div class="max-w-4xl mx-auto p-6">
+
+        <h1 class="text-3xl font-bold text-center mb-6">MATRIX Masterclass — Dashboard</h1>
+
+        <!-- Alerts / Notifications -->
+        <div id="alertArea" class="mb-4 text-center text-sm"></div>
+
+        <!-- Profile Section -->
+        <div id="profile" class="bg-white p-6 rounded shadow mb-6">
+            <h2 class="text-xl font-semibold mb-4">Your Profile</h2>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <p><strong>Name:</strong> <span id="studentName"></span></p>
+                <p><strong>Email:</strong> <span id="studentEmail"></span></p>
+                <p><strong>Plan:</strong> <span id="studentPlan"></span></p>
+                <p><strong>Login Code:</strong> <span id="studentCode"></span></p>
+                <p><strong>Payment Status:</strong> <span id="paymentStatus"></span></p>
+                <p><strong>Subscription Ends:</strong> <span id="subscriptionEnd"></span></p>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium">Subscription Progress:</label>
+                <div class="bg-gray-200 h-4 rounded">
+                    <div id="subProgress" class="bg-emerald-600 h-4 rounded w-0"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subscription Renewal -->
+        <div id="renewSection" class="bg-white p-6 rounded shadow mb-6">
+            <h2 class="text-xl font-semibold mb-3">Renew Subscription</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="renewCard bg-sky-100 p-4 rounded text-center cursor-pointer" data-plan="1 Month"
+                    data-price="50">1 Month - $50</div>
+                <div class="renewCard bg-sky-100 p-4 rounded text-center cursor-pointer" data-plan="3 Months"
+                    data-price="120">3 Months - $120</div>
+                <div class="renewCard bg-sky-100 p-4 rounded text-center cursor-pointer" data-plan="6 Months"
+                    data-price="200">6 Months - $200</div>
+                <div class="renewCard bg-sky-100 p-4 rounded text-center cursor-pointer" data-plan="8 Months"
+                    data-price="300">8 Months - $300</div>
+                <div class="renewCard bg-sky-100 p-4 rounded text-center cursor-pointer" data-plan="1 Year"
+                    data-price="700">1 Year - $700</div>
+            </div>
+
+            <div class="mt-4">
+                <label class="block text-sm font-medium mb-1">Select Payment Method:</label>
+                <select id="paymentMethodSelect" class="w-full border rounded p-2">
+                    <option value="paystack">Paystack (Card / Online)</option>
+                    <option value="crypto">Crypto / Manual Payment</option>
+                    <option value="bank">Bank Transfer</option>
+                </select>
+            </div>
+
+            <div id="cryptoSection" class="mt-3 hidden p-3 bg-slate-50 rounded">
+                <p class="text-sm">Send payment to one of the wallets below and upload receipt for approval:</p>
+                <ul class="mt-2 text-sm">
+                    <li>BTC: <span class="font-mono">12g5tyx6SPgqrrc5vATweMMuuM6yuZ3o4a</span></li>
+                    <li>ETH: <span class="font-mono">0xC95fA8e15F0DA428c131169d60762e6a912A9Aba</span></li>
+                    <li>BNB: <span class="font-mono">0xC95fA8e15F0DA428c131169d60762e6a912A9Aba</span></li>
+                </ul>
+                <input type="file" id="paymentReceipt" class="mt-2 border rounded p-2 w-full"
+                    accept="image/*,application/pdf">
+            </div>
+        </div>
+
+        <div class="flex gap-3">
+           <a href="index.html"> <button id="goCourse" class="bg-emerald-600 text-white px-4 py-2 rounded">Go to Course</button></a>
+            <a href="login.html"><button id="logoutBtn" class="bg-rose-600 text-white px-4 py-2 rounded">Logout</button></a>
+        </div>
+
+        <!-- Payment History -->
+        <div id="paymentHistory" class="mt-6 bg-white p-6 rounded shadow hidden">
+            <h2 class="text-xl font-semibold mb-3">Subscription / Payment History</h2>
+            <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="p-2">Plan</th>
+                        <th class="p-2">Date</th>
+                        <th class="p-2">Amount</th>
+                        <th class="p-2">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://tundnozhbovfbgqmwsnh.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const studentEmail = sessionStorage.getItem('studentEmail');
+        const loginCode = sessionStorage.getItem('loginCode');
+
+        if (!studentEmail || !loginCode) {
+            alert('You must login first.');
+            window.location.href = 'code.html';
+        }
+
+        const studentNameEl = document.getElementById('studentName');
+        const studentEmailEl = document.getElementById('studentEmail');
+        const studentPlanEl = document.getElementById('studentPlan');
+        const studentCodeEl = document.getElementById('studentCode');
+        const paymentStatusEl = document.getElementById('paymentStatus');
+        const subscriptionEndEl = document.getElementById('subscriptionEnd');
+        const subProgressEl = document.getElementById('subProgress');
+        const alertArea = document.getElementById('alertArea');
+
+        const goCourseBtn = document.getElementById('goCourse');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const paymentMethodSelect = document.getElementById('paymentMethodSelect');
+        const cryptoSection = document.getElementById('cryptoSection');
+        const paymentReceipt = document.getElementById('paymentReceipt');
+        const renewCards = document.querySelectorAll('.renewCard');
+
+        async function loadProfile() {
+            const { data, error } = await supabase.from('registrations')
+                .select('*')
+                .eq('email', studentEmail)
+                .eq('login_code', loginCode)
+                .single();
+            if (error || !data) {
+                alert('Invalid session. Please login again.');
+                sessionStorage.clear();
+                window.location.href = 'code.html';
+                return;
+            }
+
+            studentNameEl.textContent = data.name;
+            studentEmailEl.textContent = data.email;
+            studentPlanEl.textContent = data.plan;
+            studentCodeEl.textContent = data.login_code;
+            paymentStatusEl.textContent = data.payment_verified ? '✅ Paid' : '❌ Pending';
+            subscriptionEndEl.textContent = new Date(data.subscription_end).toLocaleDateString();
+
+            // Subscription progress
+            const start = new Date(data.subscription_start || new Date());
+            const end = new Date(data.subscription_end);
+            const now = new Date();
+            const progressPercent = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
+            subProgressEl.style.width = progressPercent + '%';
+
+            // Show alert if subscription expiring soon
+            if ((end - now) / (1000 * 60 * 60 * 24) < 7) {
+                alertArea.innerHTML = '<span class="text-yellow-600 font-medium">⚠️ Subscription expiring soon!</span>';
+            }
+        }
+
+        loadProfile();
+
+        // Payment method toggle
+        paymentMethodSelect.addEventListener('change', () => {
+            if (paymentMethodSelect.value === 'crypto') cryptoSection.classList.remove('hidden');
+            else cryptoSection.classList.add('hidden');
+        });
+
+        // Go to course
+        goCourseBtn.addEventListener('click', () => window.location.href = 'course.html');
+
+        // Logout
+        logoutBtn.addEventListener('click', () => {
+            sessionStorage.clear();
+            window.location.href = 'code.html';
+        });
+
+        // Handle subscription renewal
+        renewCards.forEach(card => {
+            card.addEventListener('click', async () => {
+                const plan = card.dataset.plan;
+                const price = card.dataset.price;
+                const method = paymentMethodSelect.value;
+
+                if (method === 'paystack') {
+                    const handler = PaystackPop.setup({
+                        key: 'YOUR_PUBLIC_PAYSTACK_KEY',
+                        email: studentEmail,
+                        amount: price * 100,
+                        currency: 'USD',
+                        callback: async function () {
+                            await updateSubscription(plan);
+                            alert('✅ Subscription renewed successfully!');
+                            loadProfile();
+                        },
+                        onClose: function () { alert('Payment not completed.'); }
+                    });
+                    handler.openIframe();
+                } else {
+                    // Crypto / manual
+                    if (paymentReceipt.files.length === 0) return alert('Upload receipt for manual payment.');
+                    const file = paymentReceipt.files[0];
+                    const { data, error } = await supabase.storage.from('receipts').upload(`receipts/${Date.now()}_${file.name}`, file);
+                    if (error) return alert('Failed to upload receipt: ' + error.message);
+                    alert('Receipt uploaded! Admin will verify payment.');
+                }
+            });
+        });
+
+        async function updateSubscription(plan) {
+            const now = new Date();
+            let monthsToAdd = 0;
+            switch (plan) {
+                case '1 Month': monthsToAdd = 1; break;
+                case '3 Months': monthsToAdd = 3; break;
+                case '6 Months': monthsToAdd = 6; break;
+                case '8 Months': monthsToAdd = 8; break;
+                case '1 Year': monthsToAdd = 12; break;
+            }
+
+            const { data: regData } = await supabase.from('registrations').select('*').eq('email', studentEmail).single();
+            let currentEnd = new Date();
+            if (regData && regData.subscription_end) {
+                const tempEnd = new Date(regData.subscription_end);
+                if (tempEnd > now) currentEnd = tempEnd;
+            }
+            currentEnd.setMonth(currentEnd.getMonth() + monthsToAdd);
+
+            const { error } = await supabase.from('registrations')
+                .update({ plan, subscription_end: currentEnd.toISOString(), payment_verified: true })
+                .eq('email', studentEmail);
+
+            if (error) alert('Failed to update subscription: ' + error.message);
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX MASTERCLASS — ADMIN LOGIN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-900 flex items-center justify-center min-h-screen">
+
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
+        <h1 class="text-2xl font-bold text-center mb-6 text-slate-800">
+            MATRIX MASTERCLASS — ADMIN
+        </h1>
+
+        <div class="mb-4">
+            <input id="adminEmail" type="email" placeholder="Admin Email" class="w-full p-2 border rounded" />
+        </div>
+
+        <div class="mb-4 relative">
+            <input id="adminPassword" type="password" placeholder="Admin Password" class="w-full p-2 border rounded" />
+            <button type="button" id="togglePassword" class="absolute right-2 top-2 text-slate-500 text-sm">
+                Show
+            </button>
+        </div>
+
+        <div class="flex items-center mb-4">
+            <input type="checkbox" id="rememberMe" class="mr-2">
+            <label for="rememberMe" class="text-sm text-slate-700">Remember Me</label>
+        </div>
+
+        <button id="loginBtn" class="w-full bg-sky-600 hover:bg-sky-700 text-white p-2 rounded">
+            Login
+        </button>
+
+        <p id="errorMsg" class="text-red-600 text-sm mt-3 text-center"></p>
+    </div>
+
+    <script>
+        const ADMIN_EMAIL = "admin@matrix.com";
+        const ADMIN_PASS = "admin123";
+        let attempts = 0;
+        const MAX_ATTEMPTS = 5;
+
+        const emailInput = document.getElementById("adminEmail");
+        const passInput = document.getElementById("adminPassword");
+        const togglePassword = document.getElementById("togglePassword");
+        const loginBtn = document.getElementById("loginBtn");
+        const errorMsg = document.getElementById("errorMsg");
+        const rememberMe = document.getElementById("rememberMe");
+
+        // Show/hide password
+        togglePassword.addEventListener("click", () => {
+            if (passInput.type === "password") {
+                passInput.type = "text";
+                togglePassword.textContent = "Hide";
+            } else {
+                passInput.type = "password";
+                togglePassword.textContent = "Show";
+            }
+        });
+
+        // Auto-login if remembered
+        if (localStorage.getItem("matrixAdmin") === "loggedIn") {
+            window.location.href = "admin.html";
+        }
+
+        // Login function
+        loginBtn.addEventListener("click", () => {
+            const email = emailInput.value.trim();
+            const pass = passInput.value.trim();
+
+            if (!email || !pass) {
+                errorMsg.textContent = "Please enter both email and password.";
+                return;
+            }
+
+            if (attempts >= MAX_ATTEMPTS) {
+                errorMsg.textContent = "Too many failed attempts. Try again later.";
+                loginBtn.disabled = true;
+                return;
+            }
+
+            if (email === ADMIN_EMAIL && pass === ADMIN_PASS) {
+                if (rememberMe.checked) {
+                    localStorage.setItem("matrixAdmin", "loggedIn");
+                } else {
+                    sessionStorage.setItem("matrixAdmin", "loggedIn");
+                }
+                window.location.href = "admin.html";
+            } else {
+                attempts++;
+                errorMsg.textContent = `Invalid credentials. Attempt ${attempts} of ${MAX_ATTEMPTS}.`;
+            }
+        });
+    </script>
+
+</body>
+
+</html>

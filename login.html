@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX Masterclass — Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans flex items-center justify-center">
+
+    <div class="w-full max-w-md bg-white p-6 rounded shadow-md animate-fade-in">
+        <h1 class="text-2xl font-semibold mb-6 text-center text-sky-600">MATRIX Masterclass — Student Login</h1>
+
+        <input id="loginCode" type="text" placeholder="Enter your login code"
+            class="w-full border rounded p-2 mb-3 focus:ring-2 focus:ring-sky-400" maxlength="10" />
+        <div class="flex items-center justify-between mb-3">
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="rememberMe" class="h-4 w-4 rounded border-gray-300">
+                Remember Me
+            </label>
+            <a href="forgot-code.html" class="text-sm text-sky-600 hover:underline">Forgot Code?</a>
+        </div>
+
+        <button id="loginBtn"
+            class="bg-emerald-600 text-white w-full py-2 rounded hover:bg-emerald-700 transition flex items-center justify-center gap-2">
+            <span>Login</span>
+            <svg id="spinner" class="animate-spin hidden h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
+                fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+        </button>
+
+        <p id="msgArea" class="mt-4 text-sm text-center"></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+        const SUPABASE_URL = 'https://tundnozhbovfbgqmwsnh.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const loginBtn = document.getElementById('loginBtn');
+        const spinner = document.getElementById('spinner');
+        const msgArea = document.getElementById('msgArea');
+
+        loginBtn.addEventListener('click', async () => {
+            const code = document.getElementById('loginCode').value.trim();
+            if (!code) {
+                msgArea.textContent = 'Please enter your login code.';
+                msgArea.className = 'mt-4 text-sm text-rose-600 text-center';
+                return;
+            }
+
+            loginBtn.disabled = true;
+            spinner.classList.remove('hidden');
+
+            const { data, error } = await supabase.from('registrations').select('*').eq('login_code', code).single();
+
+            spinner.classList.add('hidden');
+            loginBtn.disabled = false;
+
+            if (error || !data) {
+                msgArea.textContent = 'Invalid login code.';
+                msgArea.className = 'mt-4 text-sm text-rose-600 text-center';
+                return;
+            }
+
+            if (!data.approved) {
+                msgArea.textContent = 'Your registration is pending admin approval.';
+                msgArea.className = 'mt-4 text-sm text-yellow-600 text-center';
+                return;
+            }
+
+            // Save session
+            const sessionData = {
+                id: data.id,
+                name: data.name,
+                email: data.email,
+                plan: data.plan,
+                payment_verified: data.payment_verified
+            };
+
+            if (document.getElementById('rememberMe').checked) {
+                localStorage.setItem('studentSession', JSON.stringify(sessionData));
+            } else {
+                sessionStorage.setItem('studentSession', JSON.stringify(sessionData));
+            }
+
+            msgArea.textContent = 'Login successful! Redirecting…';
+            msgArea.className = 'mt-4 text-sm text-emerald-600 text-center';
+            setTimeout(() => window.location.href = 'dashboard.html', 1500);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX Masterclass — Contact</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans">
+
+    <div class="max-w-3xl mx-auto p-6">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold">Contact Us</h1>
+            <p class="text-sm text-slate-600 mt-2">Have questions or feedback? Send us a message and we’ll respond
+                promptly.</p>
+        </header>
+
+        <form id="contactForm" class="bg-white p-6 rounded shadow space-y-4">
+            <input type="text" id="name" placeholder="Full Name" class="w-full p-2 border rounded" required>
+            <input type="email" id="email" placeholder="Email" class="w-full p-2 border rounded" required>
+            <input type="text" id="subject" placeholder="Subject" class="w-full p-2 border rounded" required>
+            <textarea id="message" placeholder="Your message..." rows="5" class="w-full p-2 border rounded"
+                required></textarea>
+
+            <button id="submitBtn" class="bg-emerald-600 text-white px-4 py-2 rounded w-full">Send Message</button>
+            <p id="msgArea" class="text-sm mt-2"></p>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const SUPABASE_URL = 'https://tundnozhbovfbgqmwsnh.supabase.co';
+            const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+            const supabase = supabasejs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            const form = document.getElementById('contactForm');
+            const msgArea = document.getElementById('msgArea');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const name = document.getElementById('name').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const subject = document.getElementById('subject').value.trim();
+                const message = document.getElementById('message').value.trim();
+
+                if (!name || !email || !subject || !message) {
+                    msgArea.textContent = 'Please fill in all fields.';
+                    msgArea.className = 'text-red-600 text-sm mt-2';
+                    return;
+                }
+
+                msgArea.textContent = 'Sending message...';
+                msgArea.className = 'text-slate-600 text-sm mt-2';
+
+                const { error } = await supabase.from('contacts').insert([
+                    { name, email, subject, message, created_at: new Date().toISOString() }
+                ]);
+
+                if (error) {
+                    msgArea.textContent = 'Failed to send message: ' + error.message;
+                    msgArea.className = 'text-red-600 text-sm mt-2';
+                } else {
+                    msgArea.textContent = 'Message sent successfully!';
+                    msgArea.className = 'text-green-600 text-sm mt-2';
+                    form.reset();
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>

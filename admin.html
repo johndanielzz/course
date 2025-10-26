@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MATRIX Masterclass — Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+
+<body class="bg-slate-100 min-h-screen font-sans">
+  <div class="max-w-7xl mx-auto p-6">
+    <header class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-bold">Admin Dashboard</h1>
+      <a href="admin-upload.html"><button  class="bg-rose-600 text-white px-4 py-2 rounded">Upload</button></a>
+      <button id="logoutBtn" class="bg-rose-600 text-white px-4 py-2 rounded">Logout</button>
+    </header>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-4">
+      <button class="tabBtn bg-sky-600 text-white px-3 py-1 rounded" data-tab="allStudents">All Students</button>
+      <button class="tabBtn bg-sky-600 text-white px-3 py-1 rounded" data-tab="pendingPayments">Pending
+        Payments</button>
+      <button class="tabBtn bg-sky-600 text-white px-3 py-1 rounded" data-tab="exportData">Export Data</button>
+    </div>
+
+    <!-- Tab Contents -->
+    <div id="tabContents">
+      <div id="allStudents" class="tabContent space-y-2"></div>
+      <div id="pendingPayments" class="tabContent space-y-2 hidden"></div>
+      <div id="exportData" class="tabContent hidden">
+        <button id="exportBtn" class="bg-emerald-600 text-white px-4 py-2 rounded">Export to CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+   
+
+    if (!localStorage.getItem('matrixAdmin')) window.location.href = 'admin-login.html';
+    const logoutBtn = document.getElementById('logoutBtn');
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('matrixAdmin');
+      window.location.href = 'admin-login.html';
+    });
+
+    const tabs = document.querySelectorAll('.tabBtn');
+    const tabContents = document.querySelectorAll('.tabContent');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('bg-emerald-600'));
+        tab.classList.add('bg-emerald-600');
+
+        tabContents.forEach(tc => tc.classList.add('hidden'));
+        document.getElementById(tab.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    let studentsData = [];
+
+    async function loadStudents() {
+      const { data, error } = await supabase.from('registrations').select('*').order('created_at', { ascending: false });
+      if (error) return alert('Error loading students: ' + error.message);
+      studentsData = data;
+      renderAllStudents();
+      renderPendingPayments();
+    }
+
+    function renderAllStudents() {
+      const container = document.getElementById('allStudents');
+      container.innerHTML = '';
+      if (!studentsData.length) return container.innerHTML = `<p class="text-slate-600">No students found.</p>`;
+
+      studentsData.forEach(student => {
+        const div = document.createElement('div');
+        div.className = 'border p-3 rounded flex justify-between items-center bg-white';
+        div.innerHTML = `
+          <div>
+            <p><strong>${student.name}</strong> (${student.email})</p>
+            <p>Plan: ${student.plan} | Ends: ${student.subscription_end ? new Date(student.subscription_end).toLocaleDateString() : 'N/A'}</p>
+            <p>Payment: ${student.payment_verified ? '✅ Paid' : '❌ Pending'} | Method: ${student.payment_method}</p>
+            ${student.receipt_url ? `<a href="${student.receipt_url}" target="_blank" class="text-sky-600 underline text-sm">View Receipt</a>` : ''}
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderPendingPayments() {
+      const container = document.getElementById('pendingPayments');
+      container.innerHTML = '';
+
+      const pending = studentsData.filter(s => !s.payment_verified && s.payment_method === 'Crypto');
+
+      if (!pending.length) return container.innerHTML = `<p class="text-slate-600">No pending payments.</p>`;
+
+      const approveAllBtn = document.createElement('button');
+      approveAllBtn.textContent = 'Approve All Pending Payments';
+      approveAllBtn.className = 'bg-emerald-600 text-white px-4 py-2 rounded mb-2';
+      container.appendChild(approveAllBtn);
+      approveAllBtn.addEventListener('click', async () => {
+        if (!confirm('Approve ALL pending payments?')) return;
+        for (const student of pending) await approvePayment(student);
+        loadStudents();
+      });
+
+      pending.forEach(student => {
+        const div = document.createElement('div');
+        div.className = 'border p-3 rounded flex justify-between items-center bg-white';
+        div.innerHTML = `
+          <div>
+            <p><strong>${student.name}</strong> (${student.email})</p>
+            <p>Plan: ${student.plan} | Ends: ${student.subscription_end ? new Date(student.subscription_end).toLocaleDateString() : 'N/A'}</p>
+            <p>Payment: ❌ Pending | Method: ${student.payment_method}</p>
+            ${student.receipt_url ? `<a href="${student.receipt_url}" target="_blank" class="text-sky-600 underline text-sm">View Receipt</a>` : ''}
+          </div>
+          <button class="approveBtn bg-emerald-600 text-white px-3 py-1 rounded">Approve</button>
+        `;
+        container.appendChild(div);
+
+        div.querySelector('.approveBtn').addEventListener('click', async () => {
+          if (!confirm(`Approve payment for ${student.name}?`)) return;
+          await approvePayment(student);
+          loadStudents();
+        });
+      });
+    }
+
+    async function approvePayment(student) {
+      let monthsToAdd = 0;
+      switch (student.plan) {
+        case '1 Month': monthsToAdd = 1; break;
+        case '3 Months': monthsToAdd = 3; break;
+        case '6 Months': monthsToAdd = 6; break;
+        case '8 Months': monthsToAdd = 8; break;
+        case '1 Year': monthsToAdd = 12; break;
+      }
+
+      const now = new Date();
+      let subscriptionEnd = student.subscription_end && new Date(student.subscription_end) > now ? new Date(student.subscription_end) : now;
+      subscriptionEnd.setMonth(subscriptionEnd.getMonth() + monthsToAdd);
+
+      const { error } = await supabase.from('registrations')
+        .update({ payment_verified: true, subscription_end: subscriptionEnd.toISOString() })
+        .eq('id', student.id);
+
+      if (error) return alert('Failed to approve: ' + error.message);
+      toast(`${student.name}'s payment approved!`);
+
+      // Email notification (mailto fallback)
+      window.open(`mailto:${student.email}?subject=Payment Approved&body=Hello ${student.name},%0AYour payment has been approved and your subscription is active until ${subscriptionEnd.toLocaleDateString()}.`, '_blank');
+    }
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const csvRows = [
+        ['Name', 'Email', 'Plan', 'Payment Status', 'Payment Method', 'Subscription End']
+      ];
+      studentsData.forEach(s => {
+        csvRows.push([s.name, s.email, s.plan, s.payment_verified ? 'Paid' : 'Pending', s.payment_method, s.subscription_end]);
+      });
+      const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
+      const link = document.createElement('a');
+      link.setAttribute('href', encodeURI(csvContent));
+      link.setAttribute('download', 'students_data.csv');
+      link.click();
+    });
+
+    // Real-time updates
+    supabase.channel('registrations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, payload => loadStudents())
+      .subscribe();
+
+    // Toast notifications
+    function toast(msg) {
+      const t = document.createElement('div');
+      t.textContent = msg;
+      t.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+
+    loadStudents();
+  </script>
+</body>
+
+</html>
